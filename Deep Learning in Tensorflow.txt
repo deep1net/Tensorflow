@@ -1,0 +1,135 @@
+# Deep Neural Network in TensorFlow
+
+
+# Load dependencies
+
+import numpy as np
+import numpy as np
+np.random.seed(42)
+import tensorflow as tf
+tf.set_random_seed(42)
+
+# Load data
+
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+
+# Set neural network hyperparameters (tidier at top of file!)
+
+lr = 0.1
+epochs = 20
+batch_size = 128
+weight_initializer = tf.contrib.layers.xavier_initializer()
+
+# Set number of neurons for each layer
+
+n_input = 784
+n_dense_1 = 64
+n_dense_2 = 64
+n_dense_3 = 64
+n_classes = 10
+
+# Define placeholders Tensors for inputs and labels
+
+x = tf.placeholder(tf.float32, [None, n_input])
+y = tf.placeholder(tf.float32, [None, n_classes])
+
+# Define types of layers
+
+# dense layer with ReLU activation:
+
+def dense(x, W, b):
+    z = tf.add(tf.matmul(x, W), b)
+    a = tf.nn.relu(z)
+    return a
+
+# Design neural network architecture
+
+def network(x, weights, biases):
+    
+    # two dense hidden layers: 
+    dense_1 = dense(x, weights['W1'], biases['b1'])
+    dense_2 = dense(dense_1, weights['W2'], biases['b2'])
+    dense_3 = dense(dense_2, weights['W3'], biases['b3'])
+    
+    # linear output layer (softmax)
+    out_layer_z = tf.add(tf.matmul(dense_3, weights['W_out']), biases['b_out'])
+    
+    return out_layer_z
+
+# Define dictionaries for storing weights and biases for each layer -- and initialize
+
+bias_dict = {
+    'b1': tf.Variable(tf.zeros([n_dense_1])), 
+    'b2': tf.Variable(tf.zeros([n_dense_2])),
+    'b3': tf.Variable(tf.zeros([n_dense_3])),
+    'b_out': tf.Variable(tf.zeros([n_classes]))
+}
+?
+weight_dict = {
+    'W1': tf.get_variable('W1', [n_input, n_dense_1], initializer=weight_initializer),
+    'W2': tf.get_variable('W2', [n_dense_1, n_dense_2], initializer=weight_initializer),
+    'W3': tf.get_variable('W3', [n_dense_3, n_dense_3], initializer=weight_initializer),
+    'W_out': tf.get_variable('W_out', [n_dense_3, n_classes], initializer=weight_initializer)
+}
+
+# Build model
+
+predictions = network(x, weights=weight_dict, biases=bias_dict)
+
+# Define model's loss and its optimizer
+
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=predictions, labels=y))
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=lr).minimize(cost)
+
+# Define evaluation metrics
+
+# calculate accuracy by identifying test cases where the model's highest-probability class matches the true y label: 
+
+correct_prediction = tf.equal(tf.argmax(predictions, 1), tf.argmax(y, 1))
+accuracy_pct = tf.reduce_mean(tf.cast(correct_prediction, tf.float32)) * 100
+
+# Create op for variable initialization
+
+initializer_op = tf.global_variables_initializer()
+
+# Train the network in a session
+
+with tf.Session() as session:
+    session.run(initializer_op)
+    
+    print("Training for", epochs, "epochs.")
+    
+    # loop over epochs: 
+    for epoch in range(epochs):
+        
+        avg_cost = 0.0 # track cost to monitor performance during training
+        avg_accuracy_pct = 0.0
+        
+        # loop over all batches of the epoch:
+        n_batches = int(mnist.train.num_examples / batch_size)
+        for i in range(n_batches):
+            
+            batch_x, batch_y = mnist.train.next_batch(batch_size)
+            
+            # feed batch data to run optimization and fetching cost and accuracy: 
+            _, batch_cost, batch_acc = session.run([optimizer, cost, accuracy_pct], 
+                                                   feed_dict={x: batch_x, y: batch_y})
+            
+            # accumulate mean loss and accuracy over epoch: 
+            avg_cost += batch_cost / n_batches
+            avg_accuracy_pct += batch_acc / n_batches
+            
+        # output logs at end of each epoch of training:
+        print("Epoch ", '%03d' % (epoch+1), 
+              ": cost = ", '{:.3f}'.format(avg_cost), 
+              ", accuracy = ", '{:.2f}'.format(avg_accuracy_pct), "%", 
+              sep='')
+    
+    print("Training Complete. Testing Model.\n")
+    
+    test_cost = cost.eval({x: mnist.test.images, y: mnist.test.labels})
+    test_accuracy_pct = accuracy_pct.eval({x: mnist.test.images, y: mnist.test.labels})
+    
+    print("Test Cost:", '{:.3f}'.format(test_cost))
+    print("Test Accuracy: ", '{:.2f}'.format(test_accuracy_pct), "%", sep='')
